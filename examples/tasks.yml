@@ -1,0 +1,18 @@
+tasks:
+  - code: SETUP-01
+    name: Initialize project repository
+    status: DONE
+    priority: HIGH
+
+  - code: SETUP-02
+    name: Configure CI/CD pipeline
+    status: IN_PROGRESS
+    priority: HIGH
+    assignee: dev@example.com
+
+  - code: FEAT-01
+    name: Implement user authentication
+    status: NOT_STARTED
+    priority: HIGH
+    description: OAuth2 + JWT session management
+    dependsOn: [SETUP-01]

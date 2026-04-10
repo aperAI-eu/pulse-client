@@ -1,0 +1,62 @@
+version: 1
+name: My Project
+description: A software development project managed with Pulse
+repo: myorg/my-project
+
+statuses:
+  - name: NOT_STARTED
+    label: Not Started
+    color: "#6b7280"
+    order: 1
+    isFinal: false
+    isDefault: true
+  - name: SPECIFYING
+    label: Specifying
+    color: "#8b5cf6"
+    order: 2
+    isFinal: false
+    isDefault: false
+  - name: DESIGNING
+    label: Designing
+    color: "#6366f1"
+    order: 3
+    isFinal: false
+    isDefault: false
+  - name: IN_PROGRESS
+    label: In Progress
+    color: "#3b82f6"
+    order: 4
+    isFinal: false
+    isDefault: false
+  - name: IN_REVIEW
+    label: In Review
+    color: "#f59e0b"
+    order: 5
+    isFinal: false
+    isDefault: false
+  - name: TESTING
+    label: Testing
+    color: "#f97316"
+    order: 6
+    isFinal: false
+    isDefault: false
+  - name: BLOCKED
+    label: Blocked
+    color: "#ef4444"
+    order: 7
+    isFinal: false
+    isDefault: false
+  - name: DONE
+    label: Done
+    color: "#22c55e"
+    order: 8
+    isFinal: true
+    isDefault: false
+  - name: CANCELLED
+    label: Cancelled
+    color: "#9ca3af"
+    order: 9
+    isFinal: true
+    isDefault: false
+
+phases: []
