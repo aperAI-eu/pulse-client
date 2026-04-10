@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerFileTools } from "./tools/pulse-files.js";
 import { registerApiTools } from "./tools/pulse-api.js";
+import { registerWikiTools } from "./tools/pulse-wiki.js";
 
 const server = new McpServer({
   name: "pulse",
@@ -13,6 +14,7 @@ const server = new McpServer({
 // Register all tools
 registerFileTools(server);
 registerApiTools(server);
+registerWikiTools(server);
 
 // Start with stdio transport
 async function main() {
