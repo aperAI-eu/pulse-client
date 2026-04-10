@@ -17,7 +17,20 @@ Track your project's tasks in Git (`.pulse/` YAML files) and sync them to the Pu
 
 Copy the setup skill to your project:
 
+**Git Bash / Linux:**
 ```bash
+mkdir -p .claude/commands
+curl -o .claude/commands/pulse-setup.md https://raw.githubusercontent.com/aperAI-eu/pulse-client/main/skills/pulse-setup.md
+```
+
+**PowerShell (Windows):**
+```powershell
+New-Item -ItemType Directory -Force -Path .claude\commands
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/aperAI-eu/pulse-client/main/skills/pulse-setup.md" -OutFile ".claude\commands\pulse-setup.md"
+```
+
+**macOS / zsh:**
+```zsh
 mkdir -p .claude/commands
 curl -o .claude/commands/pulse-setup.md https://raw.githubusercontent.com/aperAI-eu/pulse-client/main/skills/pulse-setup.md
 ```
