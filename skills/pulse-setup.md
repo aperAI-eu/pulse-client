@@ -1,228 +1,213 @@
----
-name: pulse-setup
-description: Set up Pulse project management for this repo. Creates .pulse/ files, configures MCP server, sets up webhook, and syncs to Pulse.
----
+# Pulse Setup Wizard
 
-# /pulse-setup — Onboard this project to Pulse
+You are guiding the user through connecting their project to Pulse — a project management system with AI-powered task tracking, wiki knowledge base, and a Claude Code agent (Cortex) that can work on tasks autonomously.
 
-You are setting up Pulse project management for the user's repository. Follow these steps carefully, asking the user for input at each stage. Do NOT skip steps or assume answers.
+The user may arrive with NOTHING configured. Start from Phase 0.
 
-## Prerequisites
+## Phase 0: Self-configure MCP
 
-Before starting, verify:
-1. This is a git repository (`git rev-parse --git-dir`)
-2. There is a remote configured (`git remote -v`)
-3. The user has a Pulse admin account (they need this to generate an API key)
+Check if the `pulse` MCP server is available by looking for pulse tools (like `list_pulse_projects`).
 
-If any prerequisite fails, explain what's needed and stop.
+**If pulse tools are NOT available**, you need to configure them:
 
-## Process
+1. Check if `.claude/settings.json` exists in this project. Read it if so.
 
-### Step 1: Check existing setup
+2. Ask the user these questions:
+   - **Pulse URL**: "What is your Pulse instance URL?" (default: `https://test-pulse.aperai.eu`)
+   - **API Key**: "Do you have a Pulse API key? If not, log in to your Pulse instance → Admin → API Keys → create one. It starts with `pk_`."
+   - **Cortex URL**: "Does your org have a Cortex (Claude agent server)? If yes, what is its URL?" (e.g., `https://brain.aperai.eu`). If no, skip Cortex config — the user can add it later.
+   - **Cortex credentials**: If Cortex URL was provided: "What is the Cortex username and password?" (basicauth credentials for the brain PWA)
 
-Check if `.pulse/project.yml` already exists:
-- If YES: ask the user if they want to reconfigure or skip setup
-- If NO: continue
+3. Write (or merge into) `.claude/settings.json`:
+   ```json
+   {
+     "mcpServers": {
+       "pulse": {
+         "command": "npx",
+         "args": ["-y", "github:aperAI-eu/pulse-client"],
+         "env": {
+           "PULSE_API_URL": "<user's URL>",
+           "PULSE_API_KEY": "<user's key>",
+           "CORTEX_URL": "<cortex URL, if provided>",
+           "CORTEX_USER": "<cortex username, if provided>",
+           "CORTEX_PASS": "<cortex password, if provided>"
+         }
+       }
+     }
+   }
+   ```
+   
+   Omit the CORTEX_* env vars entirely if the user doesn't have a Cortex.
 
-Check if `.claude/settings.json` exists and already has a `pulse` MCP server configured:
-- If YES: ask if they want to update the configuration
-- If NO: we'll create it
+4. Tell the user: "MCP configured. Please restart Claude Code (Ctrl+Shift+P → Reload Window in VS Code, or restart the CLI) and run this setup again."
 
-### Step 2: Collect Pulse credentials
+5. **STOP HERE.** The MCP server won't be available until Claude Code restarts. Do not proceed to Step 1.
 
-Ask the user for TWO things:
+**If pulse tools ARE available**, skip to Step 1.
 
-1. **"What is your Pulse server URL?"**
-   - Example: `https://test-pulse.aperai.eu`
-   - Must be HTTPS
-   - Validate by calling `GET <url>/api/v1/projects` (expect 401 — confirms server is reachable)
+## Step 1: Connect to Pulse
 
-2. **"What is your Pulse API key?"**
-   - They generate this at `<pulse-url>/admin/api-keys` in the Pulse web UI
-   - Format: starts with `pk_`
-   - Validate by calling `GET <url>/api/v1/projects` with `Authorization: Bearer <key>` header
-   - Must return 200 (confirms key is valid)
+Call `list_pulse_projects` to verify the connection.
 
-If validation fails, explain the error and help them troubleshoot:
-- 401 = invalid or expired API key → regenerate at admin panel
-- Connection refused = wrong URL or server down
-- Certificate error = HTTPS issue
+- If it works: show the org name and existing projects. Continue to Step 2.
+- If it fails with auth error: the API key is wrong or expired. Ask the user to check it in Pulse → Admin → API Keys.
+- If it fails with connection error: the URL is wrong or Pulse is down.
 
-### Step 3: Configure MCP server
+## Step 2: Initialize .pulse/ files
 
-Create or update `.claude/settings.json` (project-level, NOT global):
+Check if `.pulse/project.yml` already exists in this repo.
 
-```json
-{
-  "mcpServers": {
-    "pulse": {
-      "command": "npx",
-      "args": ["-y", "@aperai/pulse-mcp"],
-      "env": {
-        "PULSE_API_URL": "<their-url>",
-        "PULSE_API_KEY": "<their-key>"
-      }
-    }
-  }
-}
-```
+**If it exists**: read it, show the user what's there, ask if they want to re-initialize or keep it. If keeping, skip to Step 3.
 
-If the file already exists, merge the `pulse` entry into existing `mcpServers`. Preserve other servers.
+**If it doesn't exist**: use the `init_project` tool:
 
-**Important**: Verify `.claude/settings.json` is in `.gitignore` (it contains the API key). If not, add it:
-```
-# Add to .gitignore
-.claude/settings.json
-```
+- Detect the project name from (in order): `package.json` name field, `README.md` first heading, directory name
+- Ask the user to confirm the name and optionally add a description
+- Use the "SW Development" template (default statuses)
+- Scan the codebase for TODOs, FIXMEs, open issues — suggest initial tasks
+- Let the user confirm/edit the task list before creating them
 
-### Step 4: Initialize .pulse/ project files
+## Step 3: Register project in Pulse
 
-Ask the user:
-1. **"What should we call this project?"** (default: repo name from git remote)
-2. **"Short description?"** (optional)
+Check if this repo is already registered: call `list_pulse_projects` and look for a matching name or repoUrl.
 
-Detect the repo URL from `git remote get-url origin`:
-- Extract `owner/repo` format (e.g., `aperAI-eu/seevee` from `https://github.com/aperAI-eu/seevee.git`)
+**If already registered**: show the project ID and ask if the user wants to link to it or create a new one.
 
-Create `.pulse/project.yml` with:
-- The project name and description
-- The repo in `owner/repo` format
-- Default SW Development statuses (9 statuses: NOT_STARTED through CANCELLED)
-- Empty phases array
+**If not registered**: use `register_project`:
+- Pass the project name and description from Step 2
+- Detect repoUrl from `git remote get-url origin` (strip `.git` suffix, extract `owner/repo`)
+- Save the returned project ID — you'll need it for all subsequent steps
 
-Create `.pulse/tasks.yml` with an empty tasks array.
+Tell the user: "Project registered in Pulse! ID: {id}"
 
-Create `.pulse/tasks/` directory for future phase-specific task files.
+## Step 4: Configure Git sync
 
-### Step 5: Scan for existing work (optional)
+Ask the user for a **GitHub Personal Access Token**:
+- Show them the URL: `https://github.com/settings/tokens/new?scopes=repo&description=Pulse+sync`
+- Explain: "This token lets Pulse read your repo and sync tasks bidirectionally. It needs the `repo` scope for private repos, or `public_repo` for public ones."
+- Reassure: "The token is stored encrypted per-project in Pulse. It's never shared."
 
-Ask: **"Should I scan the codebase for existing tasks, TODOs, and issues?"**
+Use `configure_git_sync` with the project ID and token.
 
-If yes:
-1. Read `CLAUDE.md` or `README.md` for project context
-2. Search for `TODO`, `FIXME`, `HACK` comments in source files
-3. Propose a list of tasks based on findings
-4. Ask user to confirm which tasks to create
-5. Create confirmed tasks in `.pulse/tasks.yml`
+This will:
+- Save the token to the project
+- Enable git sync
+- Auto-create a GitHub webhook (so pushes trigger Pulse sync)
 
-If no: skip.
+If webhook creation fails (e.g., token doesn't have admin:repo_hook scope), tell the user how to add it manually:
+- Go to GitHub → repo → Settings → Webhooks → Add webhook
+- URL: `{PULSE_URL}/api/webhooks/github`
+- Content type: `application/json`
+- Secret: (tell them to generate one and set it in Pulse project settings)
+- Events: Just pushes
 
-### Step 6: Commit and push
+## Step 5: First sync
 
-Ask: **"Ready to commit .pulse/ files and push?"**
-
-If yes:
+Commit and push the `.pulse/` files:
 ```bash
-git add .pulse/ .gitignore
-git commit -m "Add Pulse project tracking (.pulse/ files)"
+git add .pulse/
+git commit -m "Initialize Pulse project management"
 git push
 ```
 
-### Step 7: Enable Git sync on the project
+Wait 5 seconds for the webhook to fire, then call `verify_setup` with the project ID.
 
-After push, the webhook (if configured) auto-creates the project. But we also need to ensure git sync is enabled.
+Show the results. If sync succeeded, tell the user their Pulse project URL.
 
-Call the Pulse API to find and update the project:
+If sync failed, troubleshoot:
+- "Webhook not firing?" → check GitHub webhook delivery log
+- "Tasks not appearing?" → check that `.pulse/tasks.yml` has valid YAML
+- "Statuses not matching?" → check `project.yml` status names match task statuses
 
-```bash
-# Find the project by name
-curl -s -H "Authorization: Bearer <api-key>" <pulse-url>/api/v1/projects
-```
+## Step 6: Index project for Cortex
 
-If the project exists but `gitSyncEnabled` is false or `repoUrl` is null, inform the user:
+Tell the user: "Now I'll scan your codebase so Cortex (the org's AI) has knowledge about this project from day one."
 
-> "The project exists in Pulse but git sync needs to be enabled. Please go to your project in Pulse → Overview → scroll to Git Sync settings → enter the repo URL and enable sync."
+Read these files (skip any that don't exist):
+- `README.md` or `README`
+- `package.json` / `requirements.txt` / `go.mod` / `Cargo.toml` / `pyproject.toml`
+- `CLAUDE.md` or `.cursorrules` or `.github/copilot-instructions.md`
+- `.pulse/project.yml`
+- Directory listing of `src/` or `app/` or `lib/` (top 2 levels)
+- `docs/` or `documentation/` directory (list + read key files)
+- `.env.example` or `.env.template`
+- `docker-compose.yml` or `Dockerfile`
+- `tsconfig.json` / `next.config.js` / `vite.config.ts` / equivalent config
 
-If the project doesn't exist yet, it will be auto-created when the webhook is configured (next step).
+From what you read, generate wiki pages using `create_wiki_page` (use the project ID from Step 3):
 
-### Step 8: Configure GitHub webhook
+1. **`project-overview`** (category: entity)
+   - What this project is, what problem it solves, who it's for
+   - Current state (alpha/beta/production)
+   - Key URLs (live site, staging, docs)
 
-**This is critical for automatic sync.** Walk the user through it step by step:
+2. **`architecture`** (category: entity)
+   - Tech stack (language, framework, database, hosting)
+   - Key directories and what they contain
+   - Entry points (main server file, app router, CLI entry)
+   - Data flow (request → handler → DB → response)
+
+3. **`conventions`** (category: concept)
+   - Code style (detected from config or patterns)
+   - Naming conventions (files, functions, components)
+   - File organization patterns
+   - Testing approach (if tests exist)
+
+4. **`dependencies`** (category: entity)
+   - External services and APIs used
+   - Key libraries and their purpose
+   - Infrastructure (database, cache, queues, storage)
+
+5. **`decisions`** (category: decision)
+   - Architecture decisions found in docs, CLAUDE.md, comments
+   - Why certain technologies were chosen (if documented)
+   - Known trade-offs or technical debt mentioned
+
+Tell the user how many wiki pages were created and what they cover.
+
+**If Cortex is configured** (CORTEX_URL was provided in Phase 0):
+
+Also write each wiki page to Cortex's local wiki using `cortex_write_wiki`. This ensures Cortex has the knowledge both in Pulse DB (for the Brain web chat) and on disk (for CLI sessions). Use the project name as a subdirectory:
+- `cortex_write_wiki` with path `{project-name}/overview.md` → content of project-overview
+- `cortex_write_wiki` with path `{project-name}/architecture.md` → content of architecture
+- etc.
+
+Then update Cortex's `index.md` to include the new project section:
+1. Read current index: `cortex_read_wiki` path `index.md`
+2. Append the new project's pages to it
+3. Write back: `cortex_write_wiki` path `index.md`
+
+## Step 7: Verify Cortex connection
+
+**If Cortex is configured**, verify the bridge works:
+
+1. Call `cortex_list_wiki` — confirm the new project's pages appear
+2. Call `cortex_read_wiki` with path `{project-name}/overview.md` — confirm content matches
+3. Call `cortex_chat` with message: "What do you know about {project-name}?" — Cortex should answer using the just-indexed wiki pages
+
+If any of these fail, tell the user what went wrong and how to fix it (usually CORTEX_URL/CORTEX_PASS misconfigured).
+
+**If Cortex is NOT configured**, skip this step. Tell the user:
+"Cortex is not configured for this project. To connect later, add CORTEX_URL, CORTEX_USER, and CORTEX_PASS to your MCP env vars."
+
+## Done!
 
 Tell the user:
 
-> "Now we need to configure a GitHub webhook so Pulse automatically syncs when you push changes. This is a one-time setup per repo."
-
-Ask: **"What is the GitHub webhook secret for your Pulse server?"**
-- They get this from their Pulse server admin (it's the `GITHUB_WEBHOOK_SECRET` environment variable)
-- If they don't know it, tell them to ask their Pulse admin or check the server's `.env` file
-
-Then give them **exact instructions** with their specific values filled in:
-
-> **Go to:** `https://github.com/<owner>/<repo>/settings/hooks/new`
->
-> Fill in:
-> 1. **Payload URL:** `<pulse-url>/api/webhooks/github`
-> 2. **Content type:** `application/json`
-> 3. **Secret:** `<the webhook secret they provided>`
-> 4. **Which events:** Select "Just the push event"
-> 5. **Active:** ✅ checked
->
-> Click **"Add webhook"**
-
-Wait for the user to confirm they've done this.
-
-### Step 9: Test the sync
-
-After webhook is configured, trigger a test:
-
-```bash
-# Make a small change and push
-git commit --allow-empty -m "Test Pulse webhook sync"
-git push
 ```
+Setup complete!
 
-Then verify:
-```bash
-curl -s -H "Authorization: Bearer <api-key>" <pulse-url>/api/v1/projects | grep -i "<project-name>"
+📋 Kanban board: {pulse_url}/projects/{id}
+🧠 Cortex has indexed {n} wiki pages about your project
+🔄 Git sync is active — changes in .pulse/ files sync both ways
+🛠️ MCP tools are configured — you can manage tasks from Claude Code
+🔗 Cortex bridge is active — use cortex_chat, cortex_read_wiki, cortex_write_wiki
+
+What you can do now:
+- Open the kanban board to see and manage your tasks
+- Assign a task to "Claude" in Pulse to have Cortex work on it autonomously
+- Ask Cortex about your project: cortex_chat "What is {project-name}?"
+- Chat with Cortex via the Brain PWA at {cortex_url}
+- Use read_tasks and update_task tools right here in Claude Code
+- Share knowledge with Cortex: cortex_write_wiki to update the shared wiki
 ```
-
-If the project appears with tasks — success!
-
-If not, help troubleshoot:
-- Check webhook delivery at `https://github.com/<owner>/<repo>/settings/hooks` — click the webhook → "Recent Deliveries"
-- 200 response = webhook received, check if `.pulse/` files were in the push
-- 401 = wrong webhook secret
-- 404/500 = server issue
-
-### Step 10: Final summary
-
-Show the user a complete summary:
-
-```
-✅ Pulse Setup Complete
-
-Configuration:
-- MCP server: configured in .claude/settings.json
-- Project files: .pulse/project.yml + .pulse/tasks.yml
-- Git sync: enabled
-- Webhook: configured at <repo-url>
-
-Your project is live at: <pulse-url> (project: "<name>")
-
-How to use:
-- Create tasks: edit .pulse/tasks.yml or use MCP tools (create_task)
-- Update tasks: change status in YAML, commit + push
-- View in browser: <pulse-url> → Projects → <name>
-- Kanban board: <pulse-url> → Projects → <name> → Board tab
-- Wiki: use init_wiki MCP tool to start a project wiki
-
-Task changes pushed to git will auto-sync to Pulse.
-Changes in the Pulse web UI will be committed back to your repo.
-```
-
-## Troubleshooting
-
-If anything goes wrong during setup:
-
-**"API key doesn't work"**
-→ Go to `<pulse-url>/admin/api-keys`, create a new key. Copy it immediately — it's only shown once.
-
-**"Webhook not firing"**
-→ Check the webhook secret matches. Check Recent Deliveries on GitHub. Verify the Pulse server is accessible from the internet.
-
-**"Project not appearing in Pulse"**
-→ Verify `.pulse/project.yml` was pushed. Check that `gitSyncEnabled` is true and `repoUrl` matches on the project. Try a re-push.
-
-**"Can't access admin/api-keys"**
-→ You need ADMIN role in your Pulse organization. Ask your org admin to grant access or create a key for you.

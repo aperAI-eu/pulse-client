@@ -101,6 +101,163 @@ export function registerApiTools(server: McpServer) {
     }
   );
 
+  // ─── register_project ──────────────────────────────────────────
+
+  server.tool(
+    "register_project",
+    "Create a new project in Pulse. Returns the project ID. Use this during setup to register a repo with Pulse.",
+    {
+      name: z.string().describe("Project name"),
+      description: z.string().optional().describe("Project description"),
+      repoUrl: z.string().optional().describe("GitHub repo in owner/repo format"),
+    },
+    async ({ name, description, repoUrl }) => {
+      try {
+        const res = await pulseApi("/projects", {
+          method: "POST",
+          body: JSON.stringify({ name, description, repoUrl }),
+        });
+
+        if (!res.ok) {
+          return { content: [{ type: "text" as const, text: `Error: ${res.status} ${await res.text()}` }] };
+        }
+
+        const project = await res.json();
+        return {
+          content: [{
+            type: "text" as const,
+            text: `Project created!\nID: ${project.id}\nName: ${project.name}\n\nNext: configure git sync with configure_git_sync tool.`,
+          }],
+        };
+      } catch (err) {
+        return { content: [{ type: "text" as const, text: `API error: ${err instanceof Error ? err.message : String(err)}` }] };
+      }
+    }
+  );
+
+  // ─── configure_git_sync ───────────────────────────────────────
+
+  server.tool(
+    "configure_git_sync",
+    "Configure git sync for a project: set GitHub token, enable sync, and auto-create webhook. Run after register_project.",
+    {
+      projectId: z.string().describe("Pulse project ID"),
+      gitToken: z.string().describe("GitHub personal access token with repo scope"),
+    },
+    async ({ projectId, gitToken }) => {
+      try {
+        // Set git token and enable sync
+        const patchRes = await pulseApi(`/projects/${projectId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ gitToken, gitSyncEnabled: true }),
+        });
+
+        if (!patchRes.ok) {
+          return { content: [{ type: "text" as const, text: `Error setting token: ${patchRes.status} ${await patchRes.text()}` }] };
+        }
+
+        // Auto-create webhook
+        const hookRes = await pulseApi(`/projects/${projectId}/setup-webhook`, {
+          method: "POST",
+        });
+
+        if (!hookRes.ok) {
+          const err = await hookRes.text();
+          return { content: [{ type: "text" as const, text: `Git token saved but webhook creation failed: ${hookRes.status} ${err}\n\nYou may need to create the webhook manually in GitHub repo settings.` }] };
+        }
+
+        const hook = await hookRes.json();
+        return {
+          content: [{
+            type: "text" as const,
+            text: `Git sync configured!\n- Token: saved\n- Sync: enabled\n- Webhook: created at ${hook.webhookUrl}\n\nNext: commit and push .pulse/ files, then run verify_setup.`,
+          }],
+        };
+      } catch (err) {
+        return { content: [{ type: "text" as const, text: `API error: ${err instanceof Error ? err.message : String(err)}` }] };
+      }
+    }
+  );
+
+  // ─── verify_setup ─────────────────────────────────────────────
+
+  server.tool(
+    "verify_setup",
+    "Verify that a project is properly set up in Pulse: check sync, tasks, and statuses.",
+    {
+      projectId: z.string().describe("Pulse project ID"),
+    },
+    async ({ projectId }) => {
+      try {
+        // Trigger a sync
+        const syncRes = await pulseApi(`/projects/${projectId}/sync`, { method: "POST" });
+        const syncResult = syncRes.ok ? await syncRes.json() : { error: await syncRes.text() };
+
+        // Check project state
+        const projRes = await pulseApi(`/projects/${projectId}`);
+        const project = projRes.ok ? await projRes.json() : null;
+
+        const tasksRes = await pulseApi(`/projects/${projectId}/tasks`);
+        const tasks = tasksRes.ok ? await tasksRes.json() : [];
+
+        const checks = [
+          `Project: ${project ? `${project.name} ✓` : "✗ not found"}`,
+          `Repo: ${project?.repoUrl ? `${project.repoUrl} ✓` : "✗ not configured"}`,
+          `Git sync: ${project?.gitSyncEnabled ? "enabled ✓" : "✗ disabled"}`,
+          `Sync result: ${syncResult.ok ? "success ✓" : `✗ ${syncResult.error || "failed"}`}`,
+          `Tasks: ${(tasks as unknown[]).length} found`,
+          `Statuses: ${project?.statuses?.length || 0} configured`,
+        ];
+
+        const pulseUrl = getApiConfig().url;
+        return {
+          content: [{
+            type: "text" as const,
+            text: `Setup verification:\n\n${checks.join("\n")}\n\nPulse URL: ${pulseUrl}/projects/${projectId}`,
+          }],
+        };
+      } catch (err) {
+        return { content: [{ type: "text" as const, text: `Verification error: ${err instanceof Error ? err.message : String(err)}` }] };
+      }
+    }
+  );
+
+  // ─── create_wiki_page ─────────────────────────────────────────
+
+  server.tool(
+    "create_wiki_page",
+    "Create or update a wiki page for Cortex (the org's AI). Used during project indexing to build knowledge.",
+    {
+      projectId: z.string().describe("Pulse project ID"),
+      slug: z.string().describe("Page slug (kebab-case, e.g., 'project-overview')"),
+      title: z.string().describe("Page title"),
+      category: z.string().optional().describe("Category: entity, concept, decision, source, synthesis. Default: entity"),
+      content: z.string().describe("Full markdown content"),
+    },
+    async ({ projectId, slug, title, category, content }) => {
+      try {
+        const res = await pulseApi(`/projects/${projectId}/wiki`, {
+          method: "POST",
+          body: JSON.stringify({ slug, title, category: category || "entity", content }),
+        });
+
+        if (!res.ok) {
+          return { content: [{ type: "text" as const, text: `Error: ${res.status} ${await res.text()}` }] };
+        }
+
+        const page = await res.json();
+        return {
+          content: [{
+            type: "text" as const,
+            text: `Wiki page saved: "${page.title}" (${page.slug})`,
+          }],
+        };
+      } catch (err) {
+        return { content: [{ type: "text" as const, text: `API error: ${err instanceof Error ? err.message : String(err)}` }] };
+      }
+    }
+  );
+
   // ─── list_projects ─────────────────────────────────────────────
 
   server.tool(
