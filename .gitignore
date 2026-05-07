@@ -2,5 +2,6 @@ node_modules/
 dist/
 .env
 .claude/settings.json
+.codex/config.toml
 
 pulse.config.json

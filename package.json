@@ -1,7 +1,7 @@
 {
   "name": "@aperai/pulse-mcp",
   "version": "0.1.0",
-  "description": "Pulse project management client — MCP server for Claude Code. Manage tasks via .pulse/ YAML files + Pulse API.",
+  "description": "Pulse project management client - MCP server for Claude Code, Codex, and MCP-capable IDEs. Manage tasks via .pulse/ YAML files + Pulse API.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -19,6 +19,8 @@
     "mcp",
     "project-management",
     "claude-code",
+    "codex",
+    "openai",
     "anthropic"
   ],
   "repository": {
@@ -37,6 +39,7 @@
   "files": [
     "dist/",
     "skills/",
+    "codex-skills/",
     "examples/",
     ".claude/",
     "README.md"

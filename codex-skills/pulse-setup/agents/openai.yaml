@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pulse Setup"
+  short_description: "Connect a repo to Pulse from Codex"
+  default_prompt: "Set up Pulse for this repository."
