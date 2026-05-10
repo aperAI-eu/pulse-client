@@ -15,21 +15,22 @@ Check whether the `pulse` MCP server is already available.
 2. If `pulse` is missing, collect:
    - Pulse URL, default `https://test-pulse.aperai.eu`
    - Pulse API key, which starts with `pk_`
-   - Optional Cortex URL, for example `https://brain.aperai.eu`
-   - Optional Cortex username and password, only if Cortex URL is provided
+   - Optional Pulse-hosted Brain URL, default `https://brain.aperai.eu`
+   - Optional Pulse organization slug, for example `nyvium`
 3. Add the server with Codex CLI:
 
 ```powershell
 codex mcp add pulse `
   --env PULSE_API_URL="<pulse-url>" `
   --env PULSE_API_KEY="<pulse-api-key>" `
-  --env CORTEX_URL="<cortex-url>" `
-  --env CORTEX_USER="<cortex-user>" `
-  --env CORTEX_PASS="<cortex-pass>" `
+  --env PULSE_BRAIN_URL="<brain-url>" `
+  --env PULSE_ORG_SLUG="<org-slug>" `
   -- npx -y github:aperAI-eu/pulse-client
 ```
 
-Omit every `CORTEX_*` environment variable when Cortex is not configured.
+Omit the Brain environment variables when Brain is not configured. Do not add
+`CORTEX_USER` or `CORTEX_PASS` for the Pulse-hosted org Brain; those are legacy
+standalone Brain Basic-auth credentials only.
 
 If `pulse` exists but has stale credentials, remove and re-add it:
 
@@ -48,6 +49,9 @@ After restart, call `list_pulse_projects`.
 - If it works, summarize the org and visible projects.
 - If auth fails, ask the user to verify the Pulse API key in Pulse Admin > API Keys.
 - If connection fails, check the URL and whether Pulse is reachable.
+- If `describe_pulse_auth_setup` is available, call it and report whether the
+  agent is using the current Pulse org auth model or stale `CORTEX_USER` /
+  `CORTEX_PASS` variables.
 
 ## Phase 2: Initialize Files
 
@@ -114,17 +118,29 @@ Create Pulse wiki pages with `create_wiki_page`:
 - `dependencies`, category `entity`
 - `decisions`, category `decision`
 
-If Cortex is configured, also write the same knowledge to Cortex with `cortex_write_wiki` under `{project-name}/`, then update `index.md` to link the new project pages.
+If legacy standalone Cortex API credentials are configured, also write the same
+knowledge to Cortex with `cortex_write_wiki` under `{project-name}/`, then update
+`index.md` to link the new project pages.
+
+For Pulse-hosted org Brain, the Pulse wiki pages are already the organization
+Brain's knowledge source.
 
 ## Phase 7: Verify Cortex
 
-If Cortex is configured:
+If legacy standalone Cortex API credentials are configured:
 
 1. Call `cortex_list_wiki`.
 2. Read `{project-name}/overview.md`.
 3. Call `cortex_chat` with `What do you know about {project-name}?`
 
-If Cortex is not configured, tell the user they can add `CORTEX_URL`, `CORTEX_USER`, and `CORTEX_PASS` later by re-adding the Codex MCP server.
+If Pulse-hosted org Brain is configured, verify the browser URL:
+
+`{PULSE_BRAIN_URL}/{PULSE_ORG_SLUG}/brain`
+
+Tell the user to sign in with their Pulse email/password and organization.
+
+If Brain is not configured, tell the user they can add `PULSE_BRAIN_URL` and
+`PULSE_ORG_SLUG` later by re-adding the Codex MCP server.
 
 ## Completion Message
 
@@ -133,5 +149,5 @@ Finish with:
 - Pulse board URL
 - Number of wiki pages created
 - Whether git sync is active
-- Whether Cortex bridge is active
-- Useful next actions: manage tasks in Pulse, use `read_tasks` and `update_task`, ask Cortex about the project, or assign a task to the Cortex agent
+- Whether Pulse-hosted Brain URL is configured
+- Useful next actions: manage tasks in Pulse, use `read_tasks` and `update_task`, open the org Brain URL, or assign a task to the Pulse agent

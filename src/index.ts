@@ -8,6 +8,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { registerFileTools } from "./tools/pulse-files.js";
 import { registerApiTools } from "./tools/pulse-api.js";
 import { registerCortexTools } from "./tools/pulse-cortex.js";
+import { registerAuthGuidanceTools } from "./tools/pulse-auth.js";
 
 // Load pulse.config.json — single source of truth for credentials.
 // Env vars from IDE configs still override (for CI/CD, Docker, etc).
@@ -33,6 +34,7 @@ const server = new McpServer({
 registerFileTools(server);
 registerApiTools(server);
 registerCortexTools(server);
+registerAuthGuidanceTools(server);
 
 // Start with stdio transport
 async function main() {

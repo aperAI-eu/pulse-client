@@ -15,8 +15,8 @@ If pulse tools are not available, configure them for Claude Code and, when insta
 2. Ask the user these questions:
    - Pulse URL: "What is your Pulse instance URL?" Default: `https://test-pulse.aperai.eu`
    - API key: "Do you have a Pulse API key? If not, log in to your Pulse instance > Admin > API Keys > create one. It starts with `pk_`."
-   - Cortex URL: "Does your org have a Cortex agent server? If yes, what is its URL?" Example: `https://brain.aperai.eu`. If no, skip Cortex config.
-   - Cortex credentials: If Cortex URL was provided, ask for the Cortex username and password.
+   - Brain URL: "Does your org use the Pulse-hosted Brain? If yes, what is its base URL?" Default: `https://brain.aperai.eu`.
+   - Org slug: "What is your Pulse organization slug?" Example: `nyvium`. This forms `https://brain.aperai.eu/<org-slug>/brain`.
 
 3. Write or merge this into `.claude/settings.json`:
 
@@ -29,16 +29,17 @@ If pulse tools are not available, configure them for Claude Code and, when insta
       "env": {
         "PULSE_API_URL": "<user's URL>",
         "PULSE_API_KEY": "<user's key>",
-        "CORTEX_URL": "<cortex URL, if provided>",
-        "CORTEX_USER": "<cortex username, if provided>",
-        "CORTEX_PASS": "<cortex password, if provided>"
+        "PULSE_BRAIN_URL": "<brain URL, if provided>",
+        "PULSE_ORG_SLUG": "<org slug, if provided>"
       }
     }
   }
 }
 ```
 
-Omit the `CORTEX_*` env vars entirely if the user does not have Cortex.
+Omit `PULSE_BRAIN_URL` and `PULSE_ORG_SLUG` if the user does not use Brain.
+Do not ask for or add `CORTEX_USER` or `CORTEX_PASS` for the Pulse-hosted org
+Brain. Those are legacy standalone Brain Basic-auth credentials only.
 
 4. If the `codex` CLI is available, configure Codex too. Use `codex mcp list` to check whether a `pulse` server already exists. If it does not exist, run:
 
@@ -46,13 +47,12 @@ Omit the `CORTEX_*` env vars entirely if the user does not have Cortex.
 codex mcp add pulse \
   --env PULSE_API_URL="<user's URL>" \
   --env PULSE_API_KEY="<user's key>" \
-  --env CORTEX_URL="<cortex URL, if provided>" \
-  --env CORTEX_USER="<cortex username, if provided>" \
-  --env CORTEX_PASS="<cortex password, if provided>" \
+  --env PULSE_BRAIN_URL="<brain URL, if provided>" \
+  --env PULSE_ORG_SLUG="<org slug, if provided>" \
   -- npx -y github:aperAI-eu/pulse-client
 ```
 
-Omit every `CORTEX_*` flag if Cortex is not configured.
+Omit the Brain flags if Brain is not configured.
 
 If Codex already has a stale `pulse` server, tell the user you can refresh it by running:
 
@@ -67,6 +67,11 @@ Then add it again with the command above.
 6. Stop here. The MCP server will not be available until the tools restart.
 
 If pulse tools are available, skip to Step 1.
+
+If `describe_pulse_auth_setup` is available, call it before editing MCP config.
+If it reports legacy `CORTEX_USER` or `CORTEX_PASS`, tell the user these should
+be removed for Pulse-hosted Brain and replaced by `PULSE_BRAIN_URL` plus
+`PULSE_ORG_SLUG`.
 
 ## Step 1: Connect to Pulse
 
@@ -171,11 +176,16 @@ From what you read, generate wiki pages using `create_wiki_page` with the projec
 
 Tell the user how many wiki pages were created and what they cover.
 
-If Cortex is configured, also write each wiki page to Cortex using `cortex_write_wiki` under `{project-name}/`, then update Cortex's `index.md` to include the new project section.
+If a legacy standalone Cortex API is configured, also write each wiki page to
+Cortex using `cortex_write_wiki` under `{project-name}/`, then update Cortex's
+`index.md` to include the new project section.
+
+For Pulse-hosted org Brain, the wiki pages created with `create_wiki_page` are
+already stored in Pulse and are visible to the organization Brain after login.
 
 ## Step 7: Verify Cortex connection
 
-If Cortex is configured:
+If legacy standalone Cortex API credentials are configured:
 
 1. Call `cortex_list_wiki` and confirm the new project pages appear.
 2. Call `cortex_read_wiki` with path `{project-name}/overview.md` and confirm content matches.
@@ -183,9 +193,17 @@ If Cortex is configured:
 
 If any fail, tell the user what went wrong and how to fix it, usually by checking `CORTEX_URL`, `CORTEX_USER`, or `CORTEX_PASS`.
 
-If Cortex is not configured, skip this step and tell the user:
+If Pulse-hosted org Brain is configured, verify the browser URL instead:
 
-"Cortex is not configured for this project. To connect later, add CORTEX_URL, CORTEX_USER, and CORTEX_PASS to your Pulse MCP env vars."
+```text
+{PULSE_BRAIN_URL}/{PULSE_ORG_SLUG}/brain
+```
+
+Tell the user to sign in with their Pulse email/password and organization.
+
+If Brain is not configured, skip this step and tell the user:
+
+"Brain is not configured for this project. To connect later, add PULSE_BRAIN_URL and PULSE_ORG_SLUG to your Pulse MCP env vars."
 
 ## Done
 
@@ -195,16 +213,15 @@ Tell the user:
 Setup complete!
 
 Kanban board: {pulse_url}/projects/{id}
-Cortex has indexed {n} wiki pages about your project
+Pulse wiki has indexed {n} pages about your project
 Git sync is active - changes in .pulse files sync both ways
 MCP tools are configured for Claude Code and Codex where available
-Cortex bridge is active - use cortex_chat, cortex_read_wiki, cortex_write_wiki
+Brain is available at {brain_url}/{org_slug}/brain when PULSE_BRAIN_URL and PULSE_ORG_SLUG are configured
 
 What you can do now:
 - Open the Kanban board to see and manage your tasks
-- Assign a task to Cortex in Pulse to have the agent work on it autonomously
-- Ask Cortex about your project: cortex_chat "What is {project-name}?"
-- Chat with Cortex via the Brain PWA at {cortex_url}
+- Assign a task to the Pulse agent in Pulse to have an agent work on it autonomously
+- Chat with the organization Brain via {brain_url}/{org_slug}/brain
 - Use read_tasks and update_task tools from Claude Code or Codex
-- Share knowledge with Cortex: cortex_write_wiki to update the shared wiki
+- Share knowledge with the organization Brain by creating Pulse wiki pages
 ```

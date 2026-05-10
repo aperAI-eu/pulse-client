@@ -20,7 +20,7 @@ After setup, your project has:
 - A Pulse instance URL and API key
 - Node.js 20+
 - Claude Code, Codex, or another MCP-capable IDE
-- Optional Cortex credentials for the org agent bridge
+- Optional Brain URL and org slug for the Pulse-hosted org Brain
 
 ## Quickstart
 
@@ -68,7 +68,7 @@ The Codex skill configures the Pulse MCP server with `codex mcp add`, initialize
 
 ## What the wizard does
 
-1. Configures the MCP server with Pulse URL, Pulse API key, and optional Cortex credentials.
+1. Configures the MCP server with Pulse URL, Pulse API key, and optional org Brain URL.
 2. Creates `.pulse/project.yml` and `.pulse/tasks.yml`.
 3. Registers the project in Pulse.
 4. Sets up git sync and creates the GitHub webhook.
@@ -90,9 +90,8 @@ Claude Code (`.claude/settings.json`):
       "env": {
         "PULSE_API_URL": "https://test-pulse.aperai.eu",
         "PULSE_API_KEY": "pk_your_api_key",
-        "CORTEX_URL": "https://brain.aperai.eu",
-        "CORTEX_USER": "your_username",
-        "CORTEX_PASS": "your_password"
+        "PULSE_BRAIN_URL": "https://brain.aperai.eu",
+        "PULSE_ORG_SLUG": "your-org-slug"
       }
     }
   }
@@ -105,9 +104,8 @@ Codex (`~/.codex/config.toml`), preferably configured via CLI:
 codex mcp add pulse \
   --env PULSE_API_URL="https://test-pulse.aperai.eu" \
   --env PULSE_API_KEY="pk_your_api_key" \
-  --env CORTEX_URL="https://brain.aperai.eu" \
-  --env CORTEX_USER="your_username" \
-  --env CORTEX_PASS="your_password" \
+  --env PULSE_BRAIN_URL="https://brain.aperai.eu" \
+  --env PULSE_ORG_SLUG="your-org-slug" \
   -- npx -y github:aperAI-eu/pulse-client
 ```
 
@@ -121,9 +119,8 @@ args = ["-y", "github:aperAI-eu/pulse-client"]
 [mcp_servers.pulse.env]
 PULSE_API_URL = "https://test-pulse.aperai.eu"
 PULSE_API_KEY = "pk_your_api_key"
-CORTEX_URL = "https://brain.aperai.eu"
-CORTEX_USER = "your_username"
-CORTEX_PASS = "your_password"
+PULSE_BRAIN_URL = "https://brain.aperai.eu"
+PULSE_ORG_SLUG = "your-org-slug"
 ```
 
 VS Code / Antigravity (`.vscode/mcp.json`):
@@ -144,7 +141,27 @@ VS Code / Antigravity (`.vscode/mcp.json`):
 }
 ```
 
-Config files containing `PULSE_API_KEY` or `CORTEX_PASS` should be gitignored.
+Config files containing `PULSE_API_KEY` should be gitignored.
+
+### Org Brain auth
+
+The Pulse-hosted Brain uses Pulse organization login, not legacy Cortex Basic auth.
+Users open the org Brain URL and sign in with their Pulse email and password:
+
+```text
+https://brain.aperai.eu/<org-slug>/brain
+```
+
+For example, Nyvium uses:
+
+```text
+https://brain.aperai.eu/nyvium/brain
+```
+
+New MCP configs should use `PULSE_BRAIN_URL` and `PULSE_ORG_SLUG` only as
+discoverability hints for agents. Do not set `CORTEX_USER` or `CORTEX_PASS` for
+the Pulse-hosted org Brain. Those variables are only for an old standalone Brain
+server that still exposes `/api/wiki` and `/api/chat` behind Basic auth.
 
 ### Option B: Local clone
 
@@ -221,10 +238,19 @@ After config changes, restart Claude Code, Codex, or your IDE. MCP tools are loa
 
 ### Cortex bridge tools
 
+The Pulse-hosted org Brain is primarily browser/session based. These tools are
+available for legacy standalone Cortex deployments that still expose the old
+Basic-auth API:
+
 - `cortex_list_wiki` lists Cortex wiki pages
 - `cortex_read_wiki` reads a wiki page
 - `cortex_write_wiki` writes knowledge to Cortex memory
 - `cortex_chat` sends a message to Cortex
+
+### Auth guidance tool
+
+- `describe_pulse_auth_setup` explains the current org-based auth model and
+  flags legacy `CORTEX_USER`/`CORTEX_PASS` env vars when present.
 
 ## How it works
 
@@ -241,7 +267,7 @@ Flow:
   git push -> GitHub webhook -> Pulse syncs DB from .pulse/
   UI drag in Pulse -> DB update -> git writer -> commits with [pulse] prefix
   MCP tools in agent -> Pulse API -> task management
-  cortex_chat -> brain.aperai.eu -> Cortex agent with persistent memory
+  Brain URL -> Pulse org login -> organization Brain with persistent memory
 ```
 
 ## Troubleshooting
@@ -249,7 +275,11 @@ Flow:
 - "Pulse tools not available": restart your agent or IDE. MCP configs are loaded at startup.
 - "Webhook did not fire": check GitHub repo Settings > Webhooks > Recent Deliveries.
 - "Tasks not appearing": check `.pulse/tasks.yml` is valid YAML and statuses match `project.yml`.
-- "Cortex not responding": verify `CORTEX_URL`, `CORTEX_USER`, and `CORTEX_PASS`.
+- "Brain auth confusion": call `describe_pulse_auth_setup`. For Pulse-hosted
+  Brain, remove `CORTEX_USER` and `CORTEX_PASS`, keep `PULSE_API_URL`,
+  `PULSE_API_KEY`, and optionally set `PULSE_BRAIN_URL` + `PULSE_ORG_SLUG`.
+- "Legacy Cortex not responding": if you intentionally use standalone Cortex,
+  verify `CORTEX_URL`, `CORTEX_USER`, and `CORTEX_PASS`.
 
 ## License
 

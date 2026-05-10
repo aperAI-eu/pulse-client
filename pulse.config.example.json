@@ -1,7 +1,6 @@
 {
   "PULSE_API_URL": "https://your-pulse-instance.example.com",
   "PULSE_API_KEY": "pk_your_api_key_here",
-  "CORTEX_URL": "https://your-cortex-instance.example.com",
-  "CORTEX_USER": "your-username",
-  "CORTEX_PASS": "your-password"
+  "PULSE_BRAIN_URL": "https://brain.aperai.eu",
+  "PULSE_ORG_SLUG": "your-org-slug"
 }

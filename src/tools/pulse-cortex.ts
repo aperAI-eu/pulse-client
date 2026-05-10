@@ -3,10 +3,18 @@ import { z } from "zod";
 
 function getCortexConfig(): { url: string; auth: string } {
   const url = process.env.CORTEX_URL;
-  if (!url) throw new Error("CORTEX_URL must be set (e.g., https://brain.aperai.eu)");
+  if (!url) {
+    throw new Error(
+      "Legacy standalone Cortex API is not configured. For Pulse-hosted org Brain, use PULSE_BRAIN_URL/PULSE_ORG_SLUG and browser Pulse login instead; call describe_pulse_auth_setup for details."
+    );
+  }
   const user = process.env.CORTEX_USER || "jan";
   const pass = process.env.CORTEX_PASS;
-  if (!pass) throw new Error("CORTEX_PASS must be set (basicauth password for the brain)");
+  if (!pass) {
+    throw new Error(
+      "CORTEX_PASS is only required for legacy standalone Brain Basic auth. For Pulse-hosted org Brain, remove CORTEX_URL/CORTEX_USER/CORTEX_PASS and use PULSE_BRAIN_URL/PULSE_ORG_SLUG."
+    );
+  }
   return {
     url: url.replace(/\/$/, ""),
     auth: "Basic " + Buffer.from(`${user}:${pass}`).toString("base64"),
